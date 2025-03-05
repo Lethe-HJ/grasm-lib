@@ -4,7 +4,7 @@
 
 ```js
 // 浏览器环境
-import init, { point_in_polygon } from "./out/rust_wasm_lib.js";
+import init, { point_in_polygon_rayster } from "./out/rust_wasm_lib.js";
 
 init().then(() => {
   // 创建点云数据
@@ -34,12 +34,12 @@ init().then(() => {
   const rings = new Uint32Array([4]);
 
   // 调用 Rust 函数
-  const result = point_in_polygon(points, polygon, rings, true);
+  const result = point_in_polygon_rayster(points, polygon, rings, true);
   console.log(result); // 输出: Uint32Array [0, 1, 0]
 });
 
 // Node.js 环境
-const { point_in_polygon } = require("./out/rust_wasm_lib.js");
+const { point_in_polygon_rayster } = require("./out/rust_wasm_lib.js");
 
 async function main() {
   // 创建点云数据
@@ -69,7 +69,7 @@ async function main() {
   const rings = new Uint32Array([4]);
 
   // 调用 Rust 函数
-  const result = await point_in_polygon(points, polygon, rings, true);
+  const result = await point_in_polygon_rayster(points, polygon, rings, true);
   console.log(result); // 输出: Uint32Array [0, 1, 0]
 }
 

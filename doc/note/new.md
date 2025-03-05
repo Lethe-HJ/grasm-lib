@@ -88,7 +88,7 @@ wasm-bindgen --out-dir ./out --target nodejs target/wasm32-unknown-unknown/relea
 
 创建 `test.js` 文件：
 ```js
-const { greet } = require('./out/rust_wasm_lib.js');
+const { greet } = require('../../out/rust_wasm_lib.js');
 
 async function main() {
     await greet("World");  // 输出: Hello, World!

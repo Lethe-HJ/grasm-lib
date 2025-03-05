@@ -1,12 +1,14 @@
 /* tslint:disable */
 /* eslint-disable */
-export function point_in_polygon(points: Float32Array, polygon: Float32Array, rings: Uint32Array, boundary_is_inside: boolean): Uint32Array;
+export function point_in_polygon_rayster(points: Float32Array, polygon: Float32Array, rings: Uint32Array, boundary_is_inside: boolean): Uint32Array;
+export function point_in_polygon_scanline(points: Float32Array, polygon: Float32Array, rings: Uint32Array, boundary_is_inside: boolean): Uint32Array;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly point_in_polygon: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
+  readonly point_in_polygon_rayster: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
+  readonly point_in_polygon_scanline: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
   readonly __wbindgen_export_0: WebAssembly.Table;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;

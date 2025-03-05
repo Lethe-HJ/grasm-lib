@@ -1,13 +1,13 @@
 #[cfg(test)]
 mod tests {
-    use crate::scanline_polygon::batch_scanline_point_in_polygon;
+    use crate::points_in_polygon::scanline::point_in_polygon_scanline;
     use std::time::Instant;
 
     #[test]
-    fn test_scanline_vs_raycast() {
+    fn test_circle_with_holes_grid_points() {
         // 1.1. 输入
         // a. 点云：在-10到10范围内，间隔0.01的均匀点阵
-        let step = 0.005;
+        let step = 0.01;
         let range_start = -10.0;
         let range_end = 10.0;
         let points_per_axis = ((range_end - range_start) / step) as usize + 1;
@@ -57,8 +57,7 @@ mod tests {
 
         // 测量执行时间
         let start = Instant::now();
-        let results =
-            batch_scanline_point_in_polygon(&points, &polygon, &rings, boundary_is_inside);
+        let results = point_in_polygon_scanline(&points, &polygon, &rings, boundary_is_inside);
         let duration = start.elapsed();
 
         println!(

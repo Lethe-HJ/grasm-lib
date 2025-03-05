@@ -45,14 +45,34 @@ function getArrayU32FromWasm0(ptr, len) {
  * @param {boolean} boundary_is_inside
  * @returns {Uint32Array}
  */
-export function point_in_polygon(points, polygon, rings, boundary_is_inside) {
+export function point_in_polygon_rayster(points, polygon, rings, boundary_is_inside) {
     const ptr0 = passArrayF32ToWasm0(points, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passArrayF32ToWasm0(polygon, wasm.__wbindgen_malloc);
     const len1 = WASM_VECTOR_LEN;
     const ptr2 = passArray32ToWasm0(rings, wasm.__wbindgen_malloc);
     const len2 = WASM_VECTOR_LEN;
-    const ret = wasm.point_in_polygon(ptr0, len0, ptr1, len1, ptr2, len2, boundary_is_inside);
+    const ret = wasm.point_in_polygon_rayster(ptr0, len0, ptr1, len1, ptr2, len2, boundary_is_inside);
+    var v4 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+    return v4;
+}
+
+/**
+ * @param {Float32Array} points
+ * @param {Float32Array} polygon
+ * @param {Uint32Array} rings
+ * @param {boolean} boundary_is_inside
+ * @returns {Uint32Array}
+ */
+export function point_in_polygon_scanline(points, polygon, rings, boundary_is_inside) {
+    const ptr0 = passArrayF32ToWasm0(points, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArrayF32ToWasm0(polygon, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passArray32ToWasm0(rings, wasm.__wbindgen_malloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.point_in_polygon_scanline(ptr0, len0, ptr1, len1, ptr2, len2, boundary_is_inside);
     var v4 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
     return v4;

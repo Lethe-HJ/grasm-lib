@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::points_in_polygon::point_in_polygon;
+    use crate::points_in_polygon::rayster::point_in_polygon_rayster;
     use std::time::Instant;
 
     #[test]
@@ -13,37 +13,37 @@ mod tests {
 
         // Test outer area
         assert_eq!(
-            point_in_polygon(&[4.0, 1.5], &polygon, &rings, true),
+            point_in_polygon_rayster(&[4.0, 1.5], &polygon, &rings, true),
             vec![0]
         );
         assert_eq!(
-            point_in_polygon(&[-1.0, 1.5], &polygon, &rings, true),
+            point_in_polygon_rayster(&[-1.0, 1.5], &polygon, &rings, true),
             vec![0]
         );
 
         // Test hole area
         assert_eq!(
-            point_in_polygon(&[1.5, 1.5], &polygon, &rings, true),
+            point_in_polygon_rayster(&[1.5, 1.5], &polygon, &rings, true),
             vec![0]
         );
 
         // Test valid area
         assert_eq!(
-            point_in_polygon(&[0.5, 0.5], &polygon, &rings, true),
+            point_in_polygon_rayster(&[0.5, 0.5], &polygon, &rings, true),
             vec![1]
         );
         assert_eq!(
-            point_in_polygon(&[2.5, 0.5], &polygon, &rings, true),
+            point_in_polygon_rayster(&[2.5, 0.5], &polygon, &rings, true),
             vec![1]
         );
 
         // Test boundary
         assert_eq!(
-            point_in_polygon(&[3.0, 1.5], &polygon, &rings, true),
+            point_in_polygon_rayster(&[3.0, 1.5], &polygon, &rings, true),
             vec![1]
         );
         assert_eq!(
-            point_in_polygon(&[3.0, 1.5], &polygon, &rings, false),
+            point_in_polygon_rayster(&[3.0, 1.5], &polygon, &rings, false),
             vec![0]
         );
     }
@@ -83,7 +83,7 @@ mod tests {
 
         // 测量执行时间
         let start = Instant::now();
-        let results = point_in_polygon(&points, &polygon, &rings, boundary_is_inside);
+        let results = point_in_polygon_rayster(&points, &polygon, &rings, boundary_is_inside);
         let duration = start.elapsed();
 
         println!(
@@ -131,7 +131,7 @@ mod tests {
     fn test_circle_with_holes_grid_points() {
         // 1.1. 输入
         // a. 点云：在-10到10范围内，间隔0.01的均匀点阵
-        let step = 0.005;
+        let step = 0.01;
         let range_start = -10.0;
         let range_end = 10.0;
         let points_per_axis = ((range_end - range_start) / step) as usize + 1;
@@ -182,7 +182,7 @@ mod tests {
 
         // 测量执行时间
         let start = Instant::now();
-        let results = point_in_polygon(&points, &polygon, &rings, boundary_is_inside);
+        let results = point_in_polygon_rayster(&points, &polygon, &rings, boundary_is_inside);
         let duration = start.elapsed();
 
         println!(

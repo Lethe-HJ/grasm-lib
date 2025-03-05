@@ -56,7 +56,7 @@ struct GridCell {
 
 // WebAssembly导出函数：批量判断点是否在多边形内部
 #[wasm_bindgen]
-pub fn batch_scanline_point_in_polygon(
+pub fn point_in_polygon_scanline(
     points: &[f32],           // 输入点集，平铺存储 [x1,y1,x2,y2...]
     polygon: &[f32],          // 多边形顶点，平铺存储 [x1,y1,x2,y2...]
     rings: &[u32],            // 多边形环的分割索引

@@ -5,7 +5,7 @@
   </head>
   <body>
     <script type="module">
-      import init, { point_in_polygon } from "../../out/rust_wasm_lib.js";
+      import init, { point_in_polygon_rayster } from "../../out/rust_wasm_lib.js";
 
       async function runTest() {
         await init();
@@ -42,7 +42,7 @@
         const flatPoints = new Float32Array(testPoints.flat());
 
         // 执行测试
-        const result = point_in_polygon(flatPoints, polygon, rings, true);
+        const result = point_in_polygon_rayster(flatPoints, polygon, rings, true);
         // 验证结果
         console.assert(
           JSON.stringify(Array.from(result)) === "[0,0,0,1,1]",
