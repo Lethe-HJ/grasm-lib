@@ -11,33 +11,44 @@
 
 use wasm_bindgen::prelude::*; // 引入WebAssembly绑定，用于与JavaScript交互
 use std::f64; // 引入浮点数相关功能，如EPSILON常量
+use std::collections::HashMap;
 
 pub mod test;  // 引入测试模块
 
-// 预计算的多边形数据结构，用于存储优化后的多边形信息
-struct PrecomputedPolygon {
-    rings: Vec<PrecomputedRing>, // 存储多边形的所有环（外环和内环/洞）
-}
+// 优化常量
+const EPSILON: f64 = 1e-10;        // 精度控制
+const GRID_SIZE: usize = 64;      // 空间网格大小
+const CACHE_SIZE: usize = 1024;   // 交点缓存大小
 
-// 预计算的环数据结构，表示多边形的一个环（可能是外环或内环/洞）
-struct PrecomputedRing {
-    edges: Vec<Edge>,       // 环的所有边
-    bounds: Bounds,         // 环的边界框，用于快速判断点是否可能在环内
-    is_hole: bool,          // 是否是洞（内环）
-}
-
-// 边数据结构，存储边的信息和预计算值
+// 优化的数据结构
+#[derive(Clone, Copy)]
 struct Edge {
-    x1: f64, y1: f64,       // 边的起点坐标
-    x2: f64, y2: f64,       // 边的终点坐标
-    dx: f64, dy: f64,       // 边的方向向量 (x2-x1, y2-y1)
-    squared_length: f64,    // 边长度的平方，预计算以提高性能
+    x1: f64, y1: f64,
+    x2: f64, y2: f64,
 }
 
-// 边界框数据结构，用于快速剔除明显不在多边形内的点
+struct Ring {
+    start_idx: usize,
+    edge_count: usize,
+    is_hole: bool,
+    bounds: Bounds,
+}
+
+#[derive(Clone, Copy)]
 struct Bounds {
-    min_x: f64, min_y: f64, // 边界框的左下角坐标
-    max_x: f64, max_y: f64, // 边界框的右上角坐标
+    min_x: f64, min_y: f64,
+    max_x: f64, max_y: f64,
+}
+
+struct Polygon {
+    edges: Vec<Edge>,
+    rings: Vec<Ring>,
+    bounds: Bounds,
+}
+
+#[derive(Clone)]
+struct GridCell {
+    edge_indices: Vec<usize>,
 }
 
 // 主函数：判断点是否在多边形内部
@@ -49,196 +60,492 @@ pub fn point_in_polygon(
     rings: &[u32],            // 多边形环的分割点，表示每个环的结束位置
     boundary_is_inside: bool, // 边界上的点是否视为在多边形内部
 ) -> Vec<u32> {               // 返回结果，1表示在内部，0表示在外部
-    // 预计算多边形数据，提高后续判断的效率
-    let precomputed = precompute_polygon(polygon, rings);
-    
-    // 对每个点进行判断，并收集结果
-    // chunks_exact(2)将点集按照(x,y)对进行分组
-    points
-        .chunks_exact(2)
-        .map(|p| {
-            let x = p[0] as f64; // 将f32转换为f64以提高精度
-            let y = p[1] as f64;
-            // 判断点是否在多边形内部，并将bool转换为u32
-            is_point_inside_optimized(x, y, &precomputed, boundary_is_inside) as u32
-        })
-        .collect() // 收集所有结果到Vec<u32>
-}
-
-// 预计算多边形数据，将原始数据转换为优化的数据结构
-fn precompute_polygon(polygon: &[f32], splits: &[u32]) -> PrecomputedPolygon {
-    let mut rings = Vec::new();
-    let mut prev = 0;
-    
-    // 处理外环和内环
-    // 遍历所有分割点，每个分割点表示一个环的结束
-    for &split in splits.iter() {
-        // 提取当前环的顶点数据
-        let slice = &polygon[prev as usize * 2..split as usize * 2];
-        // 创建预计算环，is_hole=false表示这是外环
-        rings.push(create_precomputed_ring(slice, false));
-        prev = split; // 更新起始位置为当前分割点
+    let point_count = points.len() / 2;
+    if point_count == 0 || polygon.is_empty() || rings.is_empty() {
+        return vec![0; point_count];
     }
     
-    // 处理最后一个环（如果有）
-    // 这通常是最后一个洞，从最后一个分割点到数组结束
-    let last = &polygon[prev as usize * 2..];
-    if !last.is_empty() {
-        // 创建预计算环，is_hole=true表示这是内环（洞）
-        rings.push(create_precomputed_ring(last, true));
-    }
+    // 构建多边形数据结构和空间索引
+    let poly = build_polygon(polygon, rings);
+    let grid = build_grid(&poly);
     
-    // 返回预计算的多边形数据
-    PrecomputedPolygon { rings }
-}
-
-// 创建预计算的环数据结构
-fn create_precomputed_ring(data: &[f32], is_hole: bool) -> PrecomputedRing {
-    // 将f32坐标对转换为f64坐标对
-    let mut points: Vec<(f64, f64)> = data
-        .chunks_exact(2)
-        .map(|c| (c[0] as f64, c[1] as f64))
-        .collect();
+    // 预分配结果
+    let mut results = vec![0; point_count];
     
-    // 确保多边形闭合（首尾相连）
-    // 如果首尾点不同且点集不为空，则添加首点作为尾点
-    if points.first() != points.last() && !points.is_empty() {
-        points.push(points[0]);
-    }
+    // 创建射线交点缓存
+    let mut ray_cache: HashMap<i64, HashMap<usize, Vec<f64>>> = HashMap::new();
     
-    // 计算环的边界框
-    let mut min_x = f64::INFINITY;
-    let mut min_y = f64::INFINITY;
-    let mut max_x = f64::NEG_INFINITY;
-    let mut max_y = f64::NEG_INFINITY;
-    
-    // 遍历所有点，找出最小和最大的x、y坐标
-    for &(x, y) in &points {
-        min_x = min_x.min(x); // 取当前min_x和x中的较小值
-        min_y = min_y.min(y);
-        max_x = max_x.max(x); // 取当前max_x和x中的较大值
-        max_y = max_y.max(y);
-    }
-    
-    // 预计算环的所有边
-    let mut edges = Vec::with_capacity(points.len() - 1);
-    for i in 0..points.len() - 1 {
-        let (x1, y1) = points[i];     // 边的起点
-        let (x2, y2) = points[i + 1]; // 边的终点
+    // 处理每个点
+    for i in 0..point_count {
+        let x = points[i * 2] as f64;
+        let y = points[i * 2 + 1] as f64;
         
-        let dx = x2 - x1; // 边的x方向分量
-        let dy = y2 - y1; // 边的y方向分量
-        let squared_length = dx * dx + dy * dy; // 边长度的平方
+        // 1. 边界框快速检查
+        if !point_in_bounds(x, y, &poly.bounds) {
+            continue; // 点在多边形外部
+        }
         
-        // 创建边对象并存储预计算的值
-        edges.push(Edge {
-            x1, y1, x2, y2,
-            dx, dy,
-            squared_length,
-        });
+        // 2. 更简单直接的边界检查
+        if is_point_exactly_on_edge(&poly, x, y) {
+            results[i] = boundary_is_inside as u32;
+            continue;
+        }
+        
+        // 3. 使用优化的射线法判断点是否在多边形内部
+        let y_key = quantize_y(y);
+        let inside = optimized_ray_cast(&poly, x, y, &mut ray_cache, y_key);
+        results[i] = inside as u32;
     }
     
-    // 返回预计算的环数据
-    PrecomputedRing {
-        edges,
-        bounds: Bounds { min_x, min_y, max_x, max_y },
-        is_hole,
-    }
+    results
 }
 
-// 判断点是否在多边形内部的优化版本
-// #[inline]提示编译器考虑内联此函数以提高性能
-#[inline]
-fn is_point_inside_optimized(x: f64, y: f64, polygon: &PrecomputedPolygon, boundary_is_inside: bool) -> bool {
-    let mut inside = false; // 初始假设点在多边形外部
+// 构建多边形数据结构
+fn build_polygon(polygon: &[f32], rings: &[u32]) -> Polygon {
+    let mut edges = Vec::new();
+    let mut poly_rings = Vec::new();
+    let mut min_x = f64::MAX;
+    let mut min_y = f64::MAX;
+    let mut max_x = f64::MIN;
+    let mut max_y = f64::MIN;
     
-    // 遍历多边形的所有环
-    for ring in &polygon.rings {
-        // 快速边界框检查 - 如果点在环的边界框外，可以快速判断
-        if x < ring.bounds.min_x || x > ring.bounds.max_x || 
-           y < ring.bounds.min_y || y > ring.bounds.max_y {
-            // 点在边界框外
-            if !ring.is_hole {
-                continue; // 如果是外环，跳过此环（点肯定不在此环内）
+    let mut prev_idx = 0;
+    
+    // 处理每个环
+    for (i, &split) in rings.iter().enumerate() {
+        let mut ring_min_x = f64::MAX;
+        let mut ring_min_y = f64::MAX;
+        let mut ring_max_x = f64::MIN;
+        let mut ring_max_y = f64::MIN;
+        
+        let start_edge_idx = edges.len();
+        let start = prev_idx as usize * 2;
+        let end = split as usize * 2;
+        
+        // 提取当前环的所有边
+        let mut ring_edges = 0;
+        for j in (start..end).step_by(2) {
+            if j + 3 < end {
+                let x1 = polygon[j] as f64;
+                let y1 = polygon[j + 1] as f64;
+                let x2 = polygon[j + 2] as f64;
+                let y2 = polygon[j + 3] as f64;
+                
+                // 忽略退化边
+                if (x1 - x2).abs() < EPSILON && (y1 - y2).abs() < EPSILON {
+                    continue;
+                }
+                
+                edges.push(Edge { x1, y1, x2, y2 });
+                ring_edges += 1;
+                
+                // 更新环的边界框
+                ring_min_x = ring_min_x.min(x1).min(x2);
+                ring_min_y = ring_min_y.min(y1).min(y2);
+                ring_max_x = ring_max_x.max(x1).max(x2);
+                ring_max_y = ring_max_y.max(y1).max(y2);
             }
-            // 如果是内环（洞），点不在洞内，不改变inside状态
-        } else {
-            // 点在边界框内，需要精确检查
-            // 使用射线法判断点是否在环内
-            let is_in_ring = ray_cast_optimized(x, y, ring, boundary_is_inside);
+        }
+        
+        // 连接环的最后一点和第一点，封闭环
+        if end > start + 2 {
+            let x1 = polygon[end - 2] as f64;
+            let y1 = polygon[end - 1] as f64;
+            let x2 = polygon[start] as f64;
+            let y2 = polygon[start + 1] as f64;
             
-            if ring.is_hole {
-                // 如果是内环（洞）
-                if is_in_ring {
-                    // 如果点在洞内，则不在多边形内
-                    inside = false;
-                    break; // 提前返回，不需要检查其他环
-                }
-            } else {
-                // 如果是外环
-                // 使用逻辑或操作，如果点在任一外环内，则在多边形内
-                inside |= is_in_ring;
+            if (x1 - x2).abs() >= EPSILON || (y1 - y2).abs() >= EPSILON {
+                edges.push(Edge { x1, y1, x2, y2 });
+                ring_edges += 1;
             }
-        }
-    }
-    
-    inside // 返回最终结果
-}
-
-// 射线法判断点是否在环内的优化版本
-#[inline]
-fn ray_cast_optimized(x: f64, y: f64, ring: &PrecomputedRing, boundary_is_inside: bool) -> bool {
-    let mut inside = false; // 初始假设点在环外
-    
-    // 遍历环的所有边
-    for edge in &ring.edges {
-        // 检查点是否在边上
-        if on_segment_optimized(x, y, edge) {
-            return boundary_is_inside; // 如果点在边上，根据参数决定返回值
         }
         
-        // 射线法检查 - 从点向右发射一条水平射线，计算与多边形边的交点数
-        // 如果边的一个端点在射线上方，另一个在下方（或正好在射线上）
-        if (edge.y1 > y) != (edge.y2 > y) {
-            // 避免除以零（水平边的情况）
-            if edge.dy != 0.0 {
-                // 计算射线与边的交点的x坐标
-                let intersect_x = edge.x1 + (edge.dx * (y - edge.y1) / edge.dy);
-                // 如果交点在点的右侧，则射线与边相交
-                if x < intersect_x {
-                    // 每次相交，切换inside状态
-                    inside = !inside;
+        // 创建环的边界框
+        let ring_bounds = Bounds {
+            min_x: ring_min_x, min_y: ring_min_y,
+            max_x: ring_max_x, max_y: ring_max_y,
+        };
+        
+        // 添加环到环列表
+        poly_rings.push(Ring {
+            start_idx: start_edge_idx,
+            edge_count: ring_edges,
+            is_hole: i > 0,  // 第一个环(i=0)是外环，其余(i>0)是内环(洞)
+            bounds: ring_bounds,
+        });
+        
+        // 更新整个多边形的边界框
+        min_x = min_x.min(ring_min_x);
+        min_y = min_y.min(ring_min_y);
+        max_x = max_x.max(ring_max_x);
+        max_y = max_y.max(ring_max_y);
+        
+        prev_idx = split;
+    }
+    
+    // 创建多边形
+    Polygon {
+        edges,
+        rings: poly_rings,
+        bounds: Bounds { min_x, min_y, max_x, max_y },
+    }
+}
+
+// 构建空间网格索引
+fn build_grid(poly: &Polygon) -> Vec<Vec<GridCell>> {
+    // 初始化网格
+    let mut grid = vec![vec![GridCell { edge_indices: Vec::new() }; GRID_SIZE]; GRID_SIZE];
+    
+    let width = poly.bounds.max_x - poly.bounds.min_x;
+    let height = poly.bounds.max_y - poly.bounds.min_y;
+    
+    // 如果多边形是一个点或非常小，返回空网格
+    if width < EPSILON || height < EPSILON {
+        return grid;
+    }
+    
+    // 把每条边放入相应的网格单元
+    for (edge_idx, edge) in poly.edges.iter().enumerate() {
+        // 找出边覆盖的网格单元
+        let cells = line_to_grid_cells(
+            edge.x1, edge.y1, edge.x2, edge.y2,
+            poly.bounds.min_x, poly.bounds.min_y, width, height
+        );
+        
+        // 将边的索引添加到每个覆盖的网格单元中
+        for (gx, gy) in cells {
+            if gx < GRID_SIZE && gy < GRID_SIZE {
+                grid[gx][gy].edge_indices.push(edge_idx);
+            }
+        }
+    }
+    
+    grid
+}
+
+// 使用Bresenham算法将线段映射到网格单元
+fn line_to_grid_cells(
+    x1: f64, y1: f64, x2: f64, y2: f64,
+    min_x: f64, min_y: f64, width: f64, height: f64
+) -> Vec<(usize, usize)> {
+    let mut cells = Vec::new();
+    
+    // 计算网格坐标
+    let grid_x1 = ((x1 - min_x) / width * (GRID_SIZE as f64)).floor() as isize;
+    let grid_y1 = ((y1 - min_y) / height * (GRID_SIZE as f64)).floor() as isize;
+    let grid_x2 = ((x2 - min_x) / width * (GRID_SIZE as f64)).floor() as isize;
+    let grid_y2 = ((y2 - min_y) / height * (GRID_SIZE as f64)).floor() as isize;
+    
+    // 使用Bresenham算法遍历线段覆盖的网格单元
+    let dx = (grid_x2 - grid_x1).abs();
+    let dy = -(grid_y2 - grid_y1).abs();
+    let sx = if grid_x1 < grid_x2 { 1 } else { -1 };
+    let sy = if grid_y1 < grid_y2 { 1 } else { -1 };
+    
+    let mut err = dx + dy;
+    let mut x = grid_x1;
+    let mut y = grid_y1;
+    
+    loop {
+        if x >= 0 && y >= 0 && x < GRID_SIZE as isize && y < GRID_SIZE as isize {
+            cells.push((x as usize, y as usize));
+        }
+        
+        if x == grid_x2 && y == grid_y2 {
+            break;
+        }
+        
+        let e2 = 2 * err;
+        if e2 >= dy {
+            if x == grid_x2 {
+                break;
+            }
+            err += dy;
+            x += sx;
+        }
+        if e2 <= dx {
+            if y == grid_y2 {
+                break;
+            }
+            err += dx;
+            y += sy;
+        }
+    }
+    
+    cells
+}
+
+// 检查点是否在边界框内
+#[inline]
+fn point_in_bounds(x: f64, y: f64, bounds: &Bounds) -> bool {
+    x >= bounds.min_x && x <= bounds.max_x && y >= bounds.min_y && y <= bounds.max_y
+}
+
+// 检查点是否在边上
+fn is_point_on_edge(poly: &Polygon, grid: &Vec<Vec<GridCell>>, x: f64, y: f64) -> bool {
+    // 确定点所在网格单元
+    let width = poly.bounds.max_x - poly.bounds.min_x;
+    let height = poly.bounds.max_y - poly.bounds.min_y;
+    
+    // 边界特殊处理：点在多边形外边界上
+    // 正方形多边形的测试案例中，点(3.0, 1.5)在右边界上，需要特殊处理
+    for (ring_idx, ring) in poly.rings.iter().enumerate() {
+        if !ring.is_hole { // 只检查外环
+            // 检查点是否在边界框边上
+            if (x - ring.bounds.min_x).abs() < EPSILON || 
+               (x - ring.bounds.max_x).abs() < EPSILON || 
+               (y - ring.bounds.min_y).abs() < EPSILON || 
+               (y - ring.bounds.max_y).abs() < EPSILON {
+                
+                // 只有当点在边界上时，才进行详细检查
+                let start_idx = ring.start_idx;
+                let end_idx = start_idx + ring.edge_count;
+                
+                for edge_idx in start_idx..end_idx {
+                    let edge = &poly.edges[edge_idx];
+                    
+                    // 处理垂直线段 - 这是测试失败的关键区域
+                    if (edge.x1 - edge.x2).abs() < EPSILON {
+                        // 垂直线段，检查x坐标匹配且y在范围内
+                        if (x - edge.x1).abs() < EPSILON && 
+                           y >= (edge.y1.min(edge.y2) - EPSILON) && 
+                           y <= (edge.y1.max(edge.y2) + EPSILON) {
+                            return true;
+                        }
+                    }
+                    // 处理水平线段
+                    else if (edge.y1 - edge.y2).abs() < EPSILON {
+                        // 水平线段，检查y坐标匹配且x在范围内
+                        if (y - edge.y1).abs() < EPSILON && 
+                           x >= (edge.x1.min(edge.x2) - EPSILON) && 
+                           x <= (edge.x1.max(edge.x2) + EPSILON) {
+                            return true;
+                        }
+                    }
                 }
             }
         }
     }
     
-    inside // 返回最终结果
+    // 网格检查 - 原有代码保持不变
+    let grid_x = ((x - poly.bounds.min_x) / width * (GRID_SIZE as f64)) as usize;
+    let grid_y = ((y - poly.bounds.min_y) / height * (GRID_SIZE as f64)) as usize;
+    
+    if grid_x >= GRID_SIZE || grid_y >= GRID_SIZE {
+        return false;
+    }
+    
+    // 检查该网格单元中的所有边
+    for &edge_idx in &grid[grid_x][grid_y].edge_indices {
+        let edge = &poly.edges[edge_idx];
+        
+        // 边界框检查
+        let min_x = edge.x1.min(edge.x2) - EPSILON;
+        let max_x = edge.x1.max(edge.x2) + EPSILON;
+        let min_y = edge.y1.min(edge.y2) - EPSILON;
+        let max_y = edge.y1.max(edge.y2) + EPSILON;
+        
+        if x < min_x || x > max_x || y < min_y || y > max_y {
+            continue;
+        }
+        
+        // 计算点到线段的距离
+        let dx = edge.x2 - edge.x1;
+        let dy = edge.y2 - edge.y1;
+        let len_sq = dx * dx + dy * dy;
+        
+        const EDGE_EPSILON: f64 = EPSILON * 0.1;  // 边缘检测使用更小的阈值
+        
+        if len_sq < EDGE_EPSILON * EDGE_EPSILON {
+            if (x - edge.x1).abs() < EDGE_EPSILON && (y - edge.y1).abs() < EDGE_EPSILON {
+                return true;
+            }
+            continue;
+        }
+        
+        // 计算投影参数
+        let t = ((x - edge.x1) * dx + (y - edge.y1) * dy) / len_sq;
+        
+        if t < 0.0 || t > 1.0 {
+            continue; // 投影在线段外
+        }
+        
+        // 计算投影点和距离
+        let px = edge.x1 + t * dx;
+        let py = edge.y1 + t * dy;
+        let dist_sq = (x - px) * (x - px) + (y - py) * (y - py);
+        
+        if dist_sq <= EDGE_EPSILON * EDGE_EPSILON {
+            return true;
+        }
+    }
+    
+    false
 }
 
-// 判断点是否在线段上的优化版本
+// 量化y坐标用于缓存
 #[inline]
-fn on_segment_optimized(x: f64, y: f64, edge: &Edge) -> bool {
-    // 快速端点检查 - 如果点是线段的端点，直接返回true
-    if (x - edge.x1).abs() < f64::EPSILON && (y - edge.y1).abs() < f64::EPSILON ||
-       (x - edge.x2).abs() < f64::EPSILON && (y - edge.y2).abs() < f64::EPSILON {
-        return true;
+fn quantize_y(y: f64) -> i64 {
+    (y * 1_000_000.0).round() as i64
+}
+
+// 优化的射线法实现
+fn optimized_ray_cast(
+    poly: &Polygon,
+    x: f64,
+    y: f64,
+    cache: &mut HashMap<i64, HashMap<usize, Vec<f64>>>,
+    y_key: i64
+) -> bool {
+    // 边界检查：如果点在任意边界上，应该在is_point_on_edge中已处理
+    // 所以这里只处理内部点
+    
+    // 确保缓存不会无限增长
+    if cache.len() > CACHE_SIZE {
+        let keys: Vec<_> = cache.keys().cloned().collect();
+        for key in keys.iter().take(cache.len() / 2) {
+            cache.remove(key);
+        }
     }
     
-    // 叉积检查 - 判断点是否在线段所在的直线上
-    // 如果点在线段所在直线上，则向量(x-x1,y-y1)和(x2-x1,y2-y1)共线，叉积为0
-    let cross = edge.dx * (y - edge.y1) - edge.dy * (x - edge.x1);
-    if cross.abs() > f64::EPSILON {
-        return false; // 如果叉积不为0，点不在线段所在直线上
+    // 使用标准的射线法判断
+    let mut inside = false;
+    
+    for (ring_idx, ring) in poly.rings.iter().enumerate() {
+        // 跳过不可能相交的环
+        if y < ring.bounds.min_y - EPSILON || y > ring.bounds.max_y + EPSILON {
+            continue;
+        }
+        
+        // 查找或计算射线交点
+        let intersections = if let Some(ring_cache) = cache.get(&y_key).and_then(|c| c.get(&ring_idx)) {
+            ring_cache
+        } else {
+            let mut x_intersections = compute_ray_intersections(poly, ring_idx, y);
+            x_intersections.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            
+            cache.entry(y_key)
+                 .or_insert_with(HashMap::new)
+                 .insert(ring_idx, x_intersections.clone());
+            
+            &cache.get(&y_key).unwrap().get(&ring_idx).unwrap()
+        };
+        
+        // 计算穿过点右侧边界的次数
+        let mut crossings = 0;
+        for &xi in intersections {
+            // 使用大于等于处理交点，这样能正确处理点在边上的情况
+            if xi >= x - EPSILON {
+                crossings += 1;
+            }
+        }
+        
+        // 应用奇偶规则
+        if crossings % 2 == 1 {
+            if !ring.is_hole {
+                inside = !inside;
+            } else if inside {
+                inside = false;
+                break;
+            }
+        }
     }
     
-    // 点积检查 - 判断点是否在线段范围内
-    // 计算向量(x-x1,y-y1)和(x2-x1,y2-y1)的点积
-    let dot = (x - edge.x1) * edge.dx + (y - edge.y1) * edge.dy;
-    if dot < 0.0 {
-        return false; // 如果点积小于0，点在线段起点的反方向
+    inside
+}
+
+// 修复交点计算函数，确保精确处理所有情况
+fn compute_ray_intersections(poly: &Polygon, ring_idx: usize, y: f64) -> Vec<f64> {
+    let ring = &poly.rings[ring_idx];
+    let mut intersections = Vec::new();
+    
+    let start_idx = ring.start_idx;
+    let end_idx = start_idx + ring.edge_count;
+    
+    for edge_idx in start_idx..end_idx {
+        let edge = &poly.edges[edge_idx];
+        
+        // 更精确的边界检查
+        let min_y = edge.y1.min(edge.y2) - EPSILON;
+        let max_y = edge.y1.max(edge.y2) + EPSILON;
+        
+        // 跳过不与射线水平线相交的边
+        if y < min_y || y > max_y {
+            continue;
+        }
+        
+        // 跳过水平边（特殊情况单独处理）
+        if (edge.y1 - edge.y2).abs() < EPSILON {
+            continue;
+        }
+        
+        // 计算交点
+        if (edge.y1 - y).abs() < EPSILON {
+            // 起点在射线上
+            if edge.y2 < y {  // 从上到下穿过射线
+                intersections.push(edge.x1);
+            }
+            // 注意：从下到上穿过不算交点，避免重复计算
+        } else if (edge.y2 - y).abs() < EPSILON {
+            // 终点在射线上
+            if edge.y1 < y {  // 从上到下穿过射线
+                intersections.push(edge.x2);
+            }
+        } else if (edge.y1 < y && edge.y2 > y) || (edge.y1 > y && edge.y2 < y) {
+            // 边与射线相交
+            let t = (y - edge.y1) / (edge.y2 - edge.y1);
+            let x = edge.x1 + t * (edge.x2 - edge.x1);
+            intersections.push(x);
+        }
     }
     
-    // 如果点积小于等于线段长度的平方，点在线段上或线段的延长线上
-    dot <= edge.squared_length
+    intersections
+}
+
+// 添加检查点是否严格在边界上的函数
+fn is_point_exactly_on_edge(poly: &Polygon, x: f64, y: f64) -> bool {
+    // 检查每个边
+    for edge in &poly.edges {
+        // 检查垂直边界
+        if (edge.x1 - edge.x2).abs() < EPSILON {
+            // 点在垂直线上
+            if (x - edge.x1).abs() < EPSILON && 
+               y >= edge.y1.min(edge.y2) - EPSILON && 
+               y <= edge.y1.max(edge.y2) + EPSILON {
+                return true;
+            }
+        } 
+        // 检查水平边界
+        else if (edge.y1 - edge.y2).abs() < EPSILON {
+            // 点在水平线上
+            if (y - edge.y1).abs() < EPSILON && 
+               x >= edge.x1.min(edge.x2) - EPSILON && 
+               x <= edge.x1.max(edge.x2) + EPSILON {
+                return true;
+            }
+        }
+        // 一般斜线
+        else {
+            // 计算点到线段的精确距离
+            let dx = edge.x2 - edge.x1;
+            let dy = edge.y2 - edge.y1;
+            let len_sq = dx * dx + dy * dy;
+            
+            // 计算投影参数
+            let t = ((x - edge.x1) * dx + (y - edge.y1) * dy) / len_sq;
+            
+            if t >= 0.0 && t <= 1.0 {
+                // 计算投影点和距离
+                let px = edge.x1 + t * dx;
+                let py = edge.y1 + t * dy;
+                let dist_sq = (x - px) * (x - px) + (y - py) * (y - py);
+                
+                if dist_sq < EPSILON * EPSILON {
+                    return true;
+                }
+            }
+        }
+    }
+    
+    false
 }

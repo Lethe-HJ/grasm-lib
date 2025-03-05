@@ -52,7 +52,7 @@ mod tests {
     fn test_square_with_hole_grid_points() {
         // 1.1. 输入
         // a. 点云：在-10到10范围内，间隔0.001的均匀点阵
-        let step = 0.01;
+        let step = 0.005;
         let range_start = -10.0;
         let range_end = 10.0;
         let points_per_axis = ((range_end - range_start) / step) as usize + 1;
@@ -119,7 +119,7 @@ mod tests {
 
         let accuracy = (correct_count as f64 / total_count as f64) * 100.0;
         println!(
-            "Accuracy: {}/{} = {:.6}%",
+            "raycaster Point in square polygon test accuracy: {}/{} = {:.6}%",
             correct_count, total_count, accuracy
         );
 
@@ -131,7 +131,7 @@ mod tests {
     fn test_circle_with_holes_grid_points() {
         // 1.1. 输入
         // a. 点云：在-10到10范围内，间隔0.01的均匀点阵
-        let step = 0.01;
+        let step = 0.005;
         let range_start = -10.0;
         let range_end = 10.0;
         let points_per_axis = ((range_end - range_start) / step) as usize + 1;
@@ -186,7 +186,7 @@ mod tests {
         let duration = start.elapsed();
 
         println!(
-            "raycast Point in circle polygon test with {} points took: {:?}",
+            "raycaster Point in circle polygon test with {} points took: {:?}",
             num_points, duration
         );
 
@@ -222,7 +222,7 @@ mod tests {
 
         let accuracy = (correct_count as f64 / total_count as f64) * 100.0;
         println!(
-            "Accuracy: {}/{} = {:.6}%",
+            "raycaster Point in circle polygon test accuracy: {}/{} = {:.6}%",
             correct_count, total_count, accuracy
         );
 
