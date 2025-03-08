@@ -126,6 +126,9 @@
           let flatPoints;
           let result;
           
+          // 性能信息元素
+          const perfInfoElem = document.getElementById('performanceInfo');
+          
           // 生成点和计算结果的函数
           function generatePointsAndCompute() {
             testPoints = [];
@@ -148,8 +151,8 @@
             const duration = end - start;
             console.log(`计算完成，用时: ${duration} 毫秒`);
             
-            document.getElementById('performanceInfo').textContent = 
-              `点数量: ${flatPoints.length/2} | 计算用时: ${duration.toFixed(2)}ms | 步长: ${currentStep}`;
+            // 更新性能信息 (不使用 += 操作符)
+            perfInfoElem.textContent = `点数量: ${flatPoints.length/2} | 计算用时: ${duration.toFixed(2)}ms | 步长: ${currentStep}`;
             
             return duration;
           }
@@ -369,11 +372,13 @@
                 gl.drawArrays(gl.POINTS, 0, pointBatches.outside.length / 2);
               }
               
-              // 更新性能信息
+              // 更新性能信息 - 修改为完全替换文本，而不是追加
               const drawEnd = performance.now();
               const renderTime = drawEnd - drawStart;
-              document.getElementById('performanceInfo').textContent += 
-                ` | 渲染用时: ${renderTime.toFixed(2)}ms | 可见点: ${pointBatches.count}`;
+              
+              // 获取当前性能信息文本，并添加渲染信息
+              const currentInfo = perfInfoElem.textContent;
+              perfInfoElem.textContent = `${currentInfo} | 渲染用时: ${renderTime.toFixed(2)}ms | 可见点: ${pointBatches.count}`;
             }
           }
           
@@ -383,16 +388,22 @@
           // 添加控制按钮功能
           document.getElementById('zoomIn').addEventListener('click', () => {
             scale *= 1.5;
+            // 重置性能信息（仅保留计算部分）
+            perfInfoElem.textContent = perfInfoElem.textContent.split('|').slice(0, 3).join('|');
             draw();
           });
           
           document.getElementById('zoomOut').addEventListener('click', () => {
             scale /= 1.5;
+            // 重置性能信息（仅保留计算部分）
+            perfInfoElem.textContent = perfInfoElem.textContent.split('|').slice(0, 3).join('|');
             draw();
           });
           
           document.getElementById('toggleSamplePoints').addEventListener('click', () => {
             showSamplePoints = !showSamplePoints;
+            // 重置性能信息（仅保留计算部分）
+            perfInfoElem.textContent = perfInfoElem.textContent.split('|').slice(0, 3).join('|');
             draw();
           });
           
@@ -434,6 +445,9 @@
               translateY += deltaY;
               lastX = e.clientX;
               lastY = e.clientY;
+              
+              // 重置性能信息（仅保留计算部分）
+              perfInfoElem.textContent = perfInfoElem.textContent.split('|').slice(0, 3).join('|');
               draw();
             }
           });
@@ -467,6 +481,8 @@
             translateX = mouseX - worldX * scale;
             translateY = mouseY - worldY * scale;
             
+            // 重置性能信息（仅保留计算部分）
+            perfInfoElem.textContent = perfInfoElem.textContent.split('|').slice(0, 3).join('|');
             draw();
           });
           

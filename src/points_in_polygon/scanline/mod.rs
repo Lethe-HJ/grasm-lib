@@ -445,15 +445,14 @@ fn quantize_y(y: f64) -> i64 {
 // 判断点是否在多边形内部：使用扫描线算法
 fn is_point_in_polygon(
     poly: &Polygon,
-    _grid: &Vec<Vec<GridCell>>,   // 网格索引（当前未使用）
-    x: f64,                       // 点的x坐标
-    y: f64,                       // 点的y坐标
-    cache: &mut HashMap<i64, Vec<(f64, usize, usize)>>,  // 扫描线交点缓存
-    y_key: i64                    // 量化后的y坐标，用作缓存键
+    _grid: &Vec<Vec<GridCell>>,
+    x: f64,
+    y: f64,
+    cache: &mut HashMap<i64, Vec<(f64, usize, usize)>>,
+    y_key: i64
 ) -> bool {
     // 获取或计算扫描线交点
     let intersections = if let Some(cached) = cache.get(&y_key) {
-        // 缓存命中，直接使用缓存的交点
         cached
     } else {
         // 缓存未命中，计算新的交点
@@ -475,32 +474,56 @@ fn is_point_in_polygon(
         cache.get(&y_key).unwrap()
     };
     
-    // 使用射线法计算点是否在多边形内
-    // 如果从点向右发射射线，与多边形边界的交点数为奇数，则点在多边形内部
-    let mut inside = false;
-    let mut wind_numbers = vec![0; poly.rings.len()];  // 每个环的环绕数
+    // 分别处理外环和内环
+    let mut in_holes = false;
     
-    // 遍历所有交点，累计每个环的环绕数
-    for &(xi, _edge_idx, ring_idx) in intersections {
-        if x <= xi {  // 交点在点的右侧
-            wind_numbers[ring_idx] += 1;
+    // 首先判断点是否在外环内 (奇数个交点表示在内部)
+    let mut crossings_outer = 0;
+    for &(xi, _edge_idx, ring_idx) in intersections.iter() {
+        if xi >= x {
+            continue; // 只考虑点左侧的交点
+        }
+        
+        if !poly.rings[ring_idx].is_hole {
+            crossings_outer += 1;
         }
     }
+    let in_outer = crossings_outer % 2 == 1;
     
-    // 处理嵌套环：外环的奇数环绕数表示在内部，洞的奇数环绕数表示在外部
-    for (ring_idx, wind) in wind_numbers.iter().enumerate() {
-        if wind % 2 == 1 {  // 奇数交点
-            if !poly.rings[ring_idx].is_hole {
-                // 在外环内部
-                inside = true;
-            } else {
-                // 在洞内部
-                inside = false;
+    // 如果不在外环内，肯定不在多边形内
+    if !in_outer {
+        return false;
+    }
+    
+    // 然后判断点是否在任何洞内 (对每个洞单独判断)
+    for ring_idx in 0..poly.rings.len() {
+        if !poly.rings[ring_idx].is_hole {
+            continue; // 跳过外环
+        }
+        
+        // 跳过不包含该点的洞
+        if !point_in_bounds(x, y, &poly.rings[ring_idx].bounds) {
+            continue;
+        }
+        
+        // 计算与该洞的交点数
+        let mut hole_crossings = 0;
+        for &(xi, _edge_idx, r_idx) in intersections.iter() {
+            if xi >= x || r_idx != ring_idx {
+                continue;
             }
+            hole_crossings += 1;
+        }
+        
+        // 如果在任何一个洞内，则不在多边形内
+        if hole_crossings % 2 == 1 {
+            in_holes = true;
+            break;
         }
     }
     
-    inside
+    // 在外环内且不在任何洞内
+    in_outer && !in_holes
 }
 
 // 计算扫描线与多边形的交点：找出y值与多边形边的所有交点
@@ -520,30 +543,42 @@ fn compute_intersections(poly: &Polygon, y: f64) -> Vec<(f64, usize, usize)> {
         for edge_idx in ring.start_idx..end_idx {
             let edge = &poly.edges[edge_idx];
             
-            // 跳过水平边（与扫描线平行）
-            if (edge.y1 - edge.y2).abs() < EPSILON {
-                continue;
+            // 检查边是否与扫描线相交
+            // 优化处理接近扫描线的情况
+            if edge.y1 < y - EPSILON && edge.y2 < y - EPSILON {
+                continue; // 边完全在扫描线下方
             }
             
-            // 确定边与扫描线的关系
-            if (edge.y1 > y && edge.y2 > y) || (edge.y1 < y && edge.y2 < y) {
-                continue;  // 边完全在扫描线上方或下方
+            if edge.y1 > y + EPSILON && edge.y2 > y + EPSILON {
+                continue; // 边完全在扫描线上方
             }
             
-            // 处理顶点情况
+            // 改进处理扫描线经过顶点的情况
             if (edge.y1 - y).abs() < EPSILON {
-                // 起点在扫描线上 - 只考虑从下向上穿过扫描线的边
-                if edge.y2 > y {
+                // 扫描线经过边的起点
+                
+                // 找到该顶点的前一条边
+                let prev_edge_idx = if edge_idx > ring.start_idx {
+                    edge_idx - 1
+                } else {
+                    ring.start_idx + ring.edge_count - 1
+                };
+                
+                let prev_edge = &poly.edges[prev_edge_idx];
+                
+                // 如果两条相邻边的一个在上方一个在下方，则计算交点
+                if (prev_edge.y1 > y && edge.y2 < y) || 
+                   (prev_edge.y1 < y && edge.y2 > y) {
                     intersections.push((edge.x1, edge_idx, ring_idx));
                 }
             } else if (edge.y2 - y).abs() < EPSILON {
-                // 终点在扫描线上 - 只考虑从上向下穿过扫描线的边
-                if edge.y1 > y {
-                    intersections.push((edge.x2, edge_idx, ring_idx));
-                }
+                // 扫描线经过边的终点，不重复计算，因为它会被下一条边处理
+                continue;
+            } else if (edge.y1 - edge.y2).abs() < EPSILON {
+                // 忽略水平边，它们不会产生有效交点
+                continue;
             } else {
-                // 线段与扫描线相交于非顶点处
-                // 使用线性插值计算交点x坐标
+                // 标准情况：线段与扫描线相交于非顶点处
                 let t = (y - edge.y1) / (edge.y2 - edge.y1);
                 let x = edge.x1 + t * (edge.x2 - edge.x1);
                 intersections.push((x, edge_idx, ring_idx));
