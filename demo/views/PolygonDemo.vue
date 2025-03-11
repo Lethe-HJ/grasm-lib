@@ -123,7 +123,7 @@ const resetPerformanceInfo = () => {
 const initWasm = async () => {
   try {
     // 导入WASM模块
-    wasmModule = await import('/out/rust_wasm_lib.js');
+    wasmModule = await import('grasm-lib');
     await wasmModule.default();
     return true;
   } catch (error) {
