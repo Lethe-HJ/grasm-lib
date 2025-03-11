@@ -1,5 +1,5 @@
 {
-  "name": "rust-wasm-lib",
+  "name": "grasm-lib",
   "version": "1.0.0",
   "main": "out/rust_wasm_lib.js",
   "types": "out/rust_wasm_lib.d.ts",
@@ -18,7 +18,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Lethe-HJ/rust-wasm-lib.git"
+    "url": "git+https://github.com/Lethe-HJ/grasm-lib.git"
   },
   "keywords": [
     "rust",
@@ -28,7 +28,7 @@
   "author": "lethehj",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/Lethe-HJ/rust-wasm-lib/issues"
+    "url": "https://github.com/Lethe-HJ/grasm-lib/issues"
   },
-  "homepage": "https://github.com/Lethe-HJ/rust-wasm-lib#readme"
+  "homepage": "https://github.com/Lethe-HJ/grasm-lib#readme"
 }
