@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "main": "out/rust_wasm_lib.js",
   "types": "out/rust_wasm_lib.d.ts",
+  "files": [
+    "out/rust_wasm_lib.js",
+    "out/rust_wasm_lib.d.ts",
+    "out/rust_wasm_lib.wasm"
+  ],
   "description": "A Rust WASM library for image processing graphics algorithms.",
   "scripts": {
     "test": "cargo test",
