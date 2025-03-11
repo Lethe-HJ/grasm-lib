@@ -124,6 +124,7 @@ const initWasm = async () => {
   try {
     // 导入WASM模块
     wasmModule = await import('grasm-lib');
+    // wasmModule = await import('../../');
     await wasmModule.default();
     return true;
   } catch (error) {

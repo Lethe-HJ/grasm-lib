@@ -1,13 +1,10 @@
 {
-  "name": "grasm_lib",
+  "name": "grasm-lib",
   "version": "1.0.2",
-  "type": "module",
-  "main": "out/rust_wasm_lib.js",
-  "types": "out/rust_wasm_lib.d.ts",
+  "main": "out/grasm_lib.js",
+  "types": "out/grasm_lib.d.ts",
   "files": [
-    "out/rust_wasm_lib.js",
-    "out/rust_wasm_lib.d.ts",
-    "out/rust_wasm_lib.wasm"
+    "out/*"
   ],
   "description": "A Rust WASM library for image processing graphics algorithms.",
   "repository": {
@@ -31,6 +28,7 @@
     "build-wasm": "cargo build --target wasm32-unknown-unknown --release",
     "bind-wasm": "wasm-bindgen --out-dir ./out --target web target/wasm32-unknown-unknown/release/grasm_lib.wasm",
     "package-wasm": "yarn test-wasm && yarn target-wasm && yarn build-wasm && yarn bind-wasm",
+    "postpublish": "node scripts/post-publish.js",
     "dev": "vite",
     "preview": "vite preview"
   },
@@ -38,7 +36,7 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.2.3",
     "element-plus": "^2.3.8",
-    "grasm-lib": "^0.0.1",
+    "grasm-lib": "^1.0.2",
     "unplugin-auto-import": "^0.16.6",
     "unplugin-vue-components": "^0.25.1",
     "vite": "^4.4.5",
