@@ -1,6 +1,6 @@
 {
   "name": "grasm-lib",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "main": "out/grasm_lib.js",
   "types": "out/grasm_lib.d.ts",
   "files": [
