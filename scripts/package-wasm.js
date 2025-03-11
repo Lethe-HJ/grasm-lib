@@ -1,19 +1,17 @@
-const { execSync } = require("child_process");
+const { runScripts } = require("./run-scripts");
+runScripts(/*bash*/ `
+  # 清空out文件夹
+  rm -rf out
 
-const scripts = [
-  "rm -rf out",
-  "mkdir out",
-  "rustup target add wasm32-unknown-unknown",
-  "cargo build --target wasm32-unknown-unknown --release",
-  "wasm-bindgen --out-dir ./out --target web target/wasm32-unknown-unknown/release/grasm_lib.wasm",
-];
+  # 新建out文件夹
+  mkdir out
 
-for (const script of scripts) {
-  console.log(`$ ${script}`);
-  try {
-    execSync(script, { stdio: "inherit" });
-  } catch (err) {
-    console.error(err);
-    process.exit(1);
-  }
-}
+  # 添加wasm目标
+  rustup target add wasm32-unknown-unknown
+
+  # 构建wasm
+  cargo build --target wasm32-unknown-unknown --release
+
+  # 绑定wasm
+  wasm-bindgen --out-dir ./out --target web target/wasm32-unknown-unknown/release/grasm_lib.wasm
+`);
