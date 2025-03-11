@@ -1,6 +1,6 @@
 {
   "name": "grasm-lib",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "main": "out/grasm_lib.js",
   "types": "out/grasm_lib.d.ts",
   "files": [
@@ -28,9 +28,9 @@
     "build-wasm": "cargo build --target wasm32-unknown-unknown --release",
     "bind-wasm": "wasm-bindgen --out-dir ./out --target web target/wasm32-unknown-unknown/release/grasm_lib.wasm",
     "package-wasm": "node scripts/package-wasm.js",
-    "postpublish": "node scripts/post-publish.js",
     "dev": "vite",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postpublish": "node scripts/post-publish.js"
   },
   "dependencies": {},
   "devDependencies": {
