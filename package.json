@@ -1,0 +1,29 @@
+{
+  "name": "rust-wasm-lib",
+  "version": "1.0.0",
+  "main": "out/rust_wasm_lib.js",
+  "types": "out/rust_wasm_lib.d.ts",
+  "description": "A Rust WASM library for image processing graphics algorithms.",
+  "scripts": {
+    "test": "cargo test",
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "bind": "wasm-bindgen --out-dir ./out --target web target/wasm32-unknown-unknown/release/rust_wasm_lib.wasm",
+    "package": "yarn test && yarn build && yarn bind"
+
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lethe-HJ/rust-wasm-lib.git"
+  },
+  "keywords": [
+    "rust",
+    "wasm",
+    "webgl"
+  ],
+  "author": "lethehj",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Lethe-HJ/rust-wasm-lib/issues"
+  },
+  "homepage": "https://github.com/Lethe-HJ/rust-wasm-lib#readme"
+}
