@@ -1,34 +1,27 @@
 {
-  "name": "grasm-lib",
-  "version": "1.0.0",
-  "main": "out/rust_wasm_lib.js",
-  "types": "out/rust_wasm_lib.d.ts",
-  "files": [
-    "out/rust_wasm_lib.js",
-    "out/rust_wasm_lib.d.ts",
-    "out/rust_wasm_lib.wasm"
-  ],
-  "description": "A Rust WASM library for image processing graphics algorithms.",
+  "name": "polygon-demo",
+  "version": "0.0.1",
+  "type": "module",
   "scripts": {
-    "test": "cargo test",
-    "build": "cargo build --target wasm32-unknown-unknown --release",
-    "bind": "wasm-bindgen --out-dir ./out --target web target/wasm32-unknown-unknown/release/rust_wasm_lib.wasm",
-    "package": "yarn test && yarn build && yarn bind"
-
+    "test-wasm": "cargo test",
+    "target-wasm": "rustup target add wasm32-unknown-unknown",
+    "build-wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "bind-wasm": "wasm-bindgen --out-dir ./out --target web target/wasm32-unknown-unknown/release/grasm_lib.wasm",
+    "package-wasm": "yarn test-wasm && yarn target-wasm && yarn build-wasm && yarn bind-wasm",
+    "dev": "vite",
+    "preview": "vite preview"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Lethe-HJ/grasm-lib.git"
-  },
-  "keywords": [
-    "rust",
-    "wasm",
-    "webgl"
-  ],
-  "author": "lethehj",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/Lethe-HJ/grasm-lib/issues"
-  },
-  "homepage": "https://github.com/Lethe-HJ/grasm-lib#readme"
+  "dependencies": {},
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^4.2.3",
+    "element-plus": "^2.3.8",
+    "grasm-lib": "^1.0.0",
+    "unplugin-auto-import": "^0.16.6",
+    "unplugin-vue-components": "^0.25.1",
+    "vite": "^4.4.5",
+    "vite-plugin-top-level-await": "^1.5.0",
+    "vite-plugin-wasm": "^3.4.1",
+    "vue": "^3.3.4",
+    "vue-router": "^4.2.4"
+  }
 }
