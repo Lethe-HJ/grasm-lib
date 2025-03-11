@@ -639,10 +639,10 @@ glob-parent@^5.1.2, glob-parent@~5.1.2:
   dependencies:
     is-glob "^4.0.1"
 
-grasm-lib@^1.0.2:
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/grasm-lib/-/grasm-lib-1.0.2.tgz#4843e2814b0432344bfaa2d85c45eb43cf2ba304"
-  integrity sha512-ddd1x5gP98EX26uQFAYuXBT7I9Nv2rzt5H0Xamm8kIqa5X6CAs9GQUemQHKE7Er9MAhHYjUpTBt4bRzeDHlhjg==
+grasm-lib@1.0.3:
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/grasm-lib/-/grasm-lib-1.0.3.tgz#516e99608738d1b95743aa2c4a962de6791ab06f"
+  integrity sha512-zmlpxisZMqwVKno5/u/CFiQgd/E5YoIgX/quY33wACbjwWUDa6+k+Q6fzD3TjDw0zzJaiPZ2w8eZZJjXsb8c3w==
 
 hasown@^2.0.2:
   version "2.0.2"

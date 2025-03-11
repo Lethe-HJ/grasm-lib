@@ -27,7 +27,7 @@
     "target-wasm": "rustup target add wasm32-unknown-unknown",
     "build-wasm": "cargo build --target wasm32-unknown-unknown --release",
     "bind-wasm": "wasm-bindgen --out-dir ./out --target web target/wasm32-unknown-unknown/release/grasm_lib.wasm",
-    "package-wasm": "yarn test-wasm && yarn target-wasm && yarn build-wasm && yarn bind-wasm",
+    "package-wasm": "node scripts/package-wasm.js",
     "postpublish": "node scripts/post-publish.js",
     "dev": "vite",
     "preview": "vite preview"
@@ -36,7 +36,7 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.2.3",
     "element-plus": "^2.3.8",
-    "grasm-lib": "^1.0.2",
+    "grasm-lib": "1.0.3",
     "unplugin-auto-import": "^0.16.6",
     "unplugin-vue-components": "^0.25.1",
     "vite": "^4.4.5",
